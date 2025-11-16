@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "dotenv>=0.9.9",
+    "flask>=3.1.2",
     "gitpython>=3.1.30",
     "matplotlib>=3.3",
     "numpy>=1.23.5",

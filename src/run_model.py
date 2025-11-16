@@ -1,12 +1,12 @@
 import os
 import shutil
 from dataclasses import dataclass
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import List, Tuple
 
 import cv2
 import dotenv
+from flask import Flask, render_template_string, send_from_directory
 from ultralytics import YOLO
 
 dotenv.load_dotenv()
@@ -19,6 +19,7 @@ class AppConfig:
     output_data_path: Path
     host: str = "0.0.0.0"
     port: int = 8000
+    debug: bool = False
 
 
 def load_config() -> AppConfig:
@@ -29,6 +30,7 @@ def load_config() -> AppConfig:
         output_data_path=Path(os.getenv("OUTPUT_DATA_PATH", "./output_data")),
         host=os.getenv("SERVER_HOST", "0.0.0.0"),
         port=int(os.getenv("SERVER_PORT", "8000")),
+        debug=os.getenv("FLASK_DEBUG", "0") == "1",
     )
 
 
@@ -69,50 +71,53 @@ def run_inference(model: YOLO, images: List[Path], output_dir: Path) -> List[Tup
     return saved_pairs
 
 
-def write_gallery_page(output_dir: Path, pairs: List[Tuple[str, str]]) -> None:
-    """Generate a simple HTML gallery to view originals and detections."""
-    rows = []
-    for original, boxed in pairs:
-        rows.append(
-            f"<div class='item'><div><h3>{original}</h3>"
-            f"<div class='images'>"
-            f"<div><p>Original</p><img src='{original}' loading='lazy'></div>"
-            f"<div><p>Detection</p><img src='{boxed}' loading='lazy'></div>"
-            f"</div></div></div>"
-        )
+def create_app(output_dir: Path, pairs: List[Tuple[str, str]]) -> Flask:
+    app = Flask(__name__)
 
-    html = f"""<!doctype html>
+    template = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>YOLO Results</title>
   <style>
-    body {{ font-family: Arial, sans-serif; margin: 20px; background: #f3f3f3; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 16px; }}
-    .item {{ background: #fff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }}
-    h3 {{ margin: 0 0 8px 0; font-size: 18px; }}
-    .images {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; align-items: start; }}
-    img {{ width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }}
-    p {{ margin: 0 0 4px 0; font-weight: bold; }}
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f3f3f3; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 16px; }
+    .item { background: #fff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    h3 { margin: 0 0 8px 0; font-size: 18px; }
+    .images { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; align-items: start; }
+    img { width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
+    p { margin: 0 0 4px 0; font-weight: bold; }
   </style>
 </head>
 <body>
   <h1>YOLO Results</h1>
-  <p>Showing original images and boxed detections.</p>
+  <p>Original 이미지와 박스가 그려진 이미지를 나란히 보여줍니다.</p>
   <div class="grid">
-    {''.join(rows)}
+    {% for original, boxed in pairs %}
+    <div class="item">
+      <div>
+        <h3>{{ original }}</h3>
+        <div class="images">
+          <div><p>Original</p><img src="{{ url_for('static_file', filename=original) }}" loading="lazy"></div>
+          <div><p>Detection</p><img src="{{ url_for('static_file', filename=boxed) }}" loading="lazy"></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
   </div>
 </body>
 </html>
 """
-    (output_dir / "index.html").write_text(html, encoding="utf-8")
 
+    @app.route("/")
+    def index():
+        return render_template_string(template, pairs=pairs)
 
-def serve_directory(directory: Path, host: str, port: int) -> None:
-    handler = SimpleHTTPRequestHandler
-    server = ThreadingHTTPServer((host, port), lambda *args, **kwargs: handler(*args, directory=directory, **kwargs))
-    print(f"Serving {directory} at http://{host}:{port}")
-    server.serve_forever()
+    @app.route("/images/<path:filename>")
+    def static_file(filename: str):
+        return send_from_directory(output_dir, filename)
+
+    return app
 
 
 def main() -> None:
@@ -130,8 +135,9 @@ def main() -> None:
         print("No results to display.")
         return
 
-    write_gallery_page(config.output_data_path, pairs)
-    serve_directory(config.output_data_path, config.host, config.port)
+    app = create_app(config.output_data_path, pairs)
+    print(f"Serving results at http://{config.host}:{config.port}")
+    app.run(host=config.host, port=config.port, debug=config.debug)
 
 
 if __name__ == "__main__":
