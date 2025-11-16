@@ -25,7 +25,7 @@ class AppConfig:
 def load_config() -> AppConfig:
     """Load runtime configuration from environment variables."""
     return AppConfig(
-        model_path=Path(os.getenv("MODEL_PATH", "./model.pth")),
+        model_path=Path(os.getenv("MODEL_PATH", "./model.pt")),
         input_data_path=Path(os.getenv("INPUT_DATA_PATH", "./input_data")),
         output_data_path=Path(os.getenv("OUTPUT_DATA_PATH", "./output_data")),
         host=os.getenv("SERVER_HOST", "0.0.0.0"),
@@ -36,14 +36,20 @@ def load_config() -> AppConfig:
 
 def collect_input_files(input_dir: Path) -> List[Path]:
     """Return sorted image files to process."""
-    return sorted(file for file in input_dir.iterdir() if file.suffix.lower() in {".jpg", ".jpeg", ".png"})
+    return sorted(
+        file
+        for file in input_dir.iterdir()
+        if file.suffix.lower() in {".jpg", ".jpeg", ".png"}
+    )
 
 
 def ensure_output_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def run_inference(model: YOLO, images: List[Path], output_dir: Path) -> List[Tuple[str, str]]:
+def run_inference(
+    model: YOLO, images: List[Path], output_dir: Path
+) -> List[Tuple[str, str]]:
     """Run inference and save original and boxed images; returns list of (orig, boxed) file names."""
     saved_pairs: List[Tuple[str, str]] = []
 
