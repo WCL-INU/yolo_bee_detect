@@ -17,6 +17,7 @@ class AppConfig:
     model_path: Path
     input_data_path: Path
     output_data_path: Path
+    confidence_threshold: float = 0.5
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
@@ -26,6 +27,7 @@ def load_config() -> AppConfig:
     """Load runtime configuration from environment variables."""
     return AppConfig(
         model_path=Path(os.getenv("NCNN_MODEL_PATH", "./model.ncnn")),
+        confidence_threshold=float(os.getenv("INFERENCE_CONFIDENCE_THRESHOLD", "0.5")),
         input_data_path=Path(os.getenv("INPUT_DATA_PATH", "./input_data")),
         output_data_path=Path(os.getenv("OUTPUT_DATA_PATH", "./output_data")),
         host=os.getenv("SERVER_HOST", "0.0.0.0"),
@@ -48,10 +50,12 @@ def ensure_output_dir(path: Path) -> None:
 
 
 def run_inference(
-    model: YOLO, images: List[Path], output_dir: Path
+    model: YOLO, images: List[Path], config: AppConfig
 ) -> List[Tuple[str, str]]:
     """Run inference and save original and boxed images; returns list of (orig, boxed) file names."""
     saved_pairs: List[Tuple[str, str]] = []
+    output_dir = config.output_data_path
+    confidence_threshold = config.confidence_threshold
 
     for image_path in images:
         image = cv2.imread(str(image_path))
@@ -59,7 +63,7 @@ def run_inference(
             print(f"Skipping unreadable file: {image_path.name}")
             continue
 
-        results = model(image)
+        results = model(image, conf=confidence_threshold)
         plotted = results[0].plot()  # BGR array with boxes and labels
 
         orig_name = image_path.name
@@ -136,7 +140,7 @@ def main() -> None:
         return
 
     ensure_output_dir(config.output_data_path)
-    pairs = run_inference(model, input_files, config.output_data_path)
+    pairs = run_inference(model, input_files, config)
     if not pairs:
         print("No results to display.")
         return
