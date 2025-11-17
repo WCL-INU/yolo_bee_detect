@@ -15,6 +15,8 @@ try:
 except ImportError as exc:
     raise SystemExit("ncnn python package is required. Install it first.") from exc
 
+import time
+
 dotenv.load_dotenv()
 
 
@@ -135,11 +137,13 @@ class NcnnYolo:
         self.net.load_model(str(bin_f))
 
     def infer(self, image: np.ndarray, conf_th: float, iou_th: float):
+        t0 = time.time()
         padded, scale, (pad_x, pad_y) = letterbox(image, self.input_size)
         mat = ncnn.Mat.from_pixels(
             padded, ncnn.Mat.PixelType.PIXEL_BGR2RGB, padded.shape[1], padded.shape[0]
         )
         mat.substract_mean_normalize([0, 0, 0], [1 / 255, 1 / 255, 1 / 255])
+        t1 = time.time()
         with self.net.create_extractor() as ex:
             ex.input("in0", mat)
             ret, out = ex.extract("out0")
@@ -147,6 +151,7 @@ class NcnnYolo:
                 return []
         # print(out.dims, out.w, out.h, out.c)
         # print(np.array(out).shape)
+        t2 = time.time()
         data = np.array(out).reshape(out.h, out.w).T
         if data.shape[1] <= 4:
             return []
@@ -168,7 +173,10 @@ class NcnnYolo:
         boxes[:, 0::2] = boxes[:, 0::2].clip(0, image.shape[1] - 1)
         boxes[:, 1::2] = boxes[:, 1::2].clip(0, image.shape[0] - 1)
         keep = nms(boxes, cls_scores, iou_th)
+        t3 = time.time()
+        print(f"Inference time: {t1 - t0:.3f}s, Extraction time: {t2 - t1:.3f}s, NMS time: {t3 - t2:.3f}s")
         return [(boxes[i], cls_scores[i], cls_ids[i]) for i in keep]
+    
 
 
 def draw_detections(image: np.ndarray, detections) -> np.ndarray:
