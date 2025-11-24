@@ -20,6 +20,7 @@ class AppConfig:
     confidence_threshold: float = 0.5
     capture_interval: float = 0.5
     jpeg_quality: int = 80
+    show_inference_time: bool = True
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
@@ -32,6 +33,7 @@ def load_config() -> AppConfig:
         confidence_threshold=float(os.getenv("INFERENCE_CONFIDENCE_THRESHOLD", "0.5")),
         capture_interval=float(os.getenv("CAMERA_FRAME_INTERVAL", "0.03")),
         jpeg_quality=int(os.getenv("STREAM_JPEG_QUALITY", "80")),
+        show_inference_time=os.getenv("SHOW_INFERENCE_TIME", "1") == "1",
         host=os.getenv("SERVER_HOST", "0.0.0.0"),
         port=int(os.getenv("SERVER_PORT", "8000")),
         debug=os.getenv("FLASK_DEBUG", "0") == "1",
@@ -52,9 +54,16 @@ class CameraInferenceService:
         self._latest_detection: Optional[bytes] = None
         self._updated_at: float = 0.0
         self._frame_seq: int = 0
+        # performance stats (ms)
+        self._last_inference_ms: float = 0.0
+        self._last_encode_ms: float = 0.0
+        self._last_loop_ms: float = 0.0
 
     def start(self) -> None:
-        preview = self.picam2.create_preview_configuration(main={"format": "BGR888"})
+        # Allow camera format to be configured (e.g. "BGR888" or "RGB888")
+        preview = self.picam2.create_preview_configuration(
+            main={"format": self.config.camera_format}
+        )
         self.picam2.configure(preview)
         self.picam2.start()
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -88,24 +97,31 @@ class CameraInferenceService:
                 if self._stop.is_set():
                     break
                 frame = (
-                    self._latest_original if target == "original" else self._latest_detection
+                    self._latest_original
+                    if target == "original"
+                    else self._latest_detection
                 )
                 seq = self._frame_seq
             if frame is None:
                 continue
             last_seq = seq
-            yield (
-                boundary
-                + b"\r\nContent-Type: image/jpeg\r\n\r\n"
-                + frame
-                + b"\r\n"
-            )
+            yield (boundary + b"\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
+
+    def get_stats(self) -> dict:
+        with self._condition:
+            return {
+                "inference_ms": self._last_inference_ms,
+                "encode_ms": self._last_encode_ms,
+                "loop_ms": self._last_loop_ms,
+                "frame_seq": self._frame_seq,
+            }
 
     def _loop(self) -> None:
         """Capture frames, store original/detection images, and publish latest paths."""
         jpeg_quality = int(max(10, min(95, self.config.jpeg_quality)))
         encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality]
         while not self._stop.is_set():
+            loop_start = time.time()
             try:
                 bgr = self.picam2.capture_array()
             except Exception as exc:
@@ -118,17 +134,25 @@ class CameraInferenceService:
                 continue
 
             try:
+                infer_start = time.time()
                 results = self.model(bgr, conf=self.config.confidence_threshold)
+                infer_end = time.time()
+                inference_ms = (infer_end - infer_start) * 1000.0
             except Exception as exc:
                 print(f"Inference failed: {exc}")
                 time.sleep(0.2)
                 continue
 
             plotted = results[0].plot() if results else bgr
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            plotted_rgb = cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB)
-            ok_orig, orig_buf = cv2.imencode(".jpg", rgb, encode_params)
-            ok_boxed, boxed_buf = cv2.imencode(".jpg", plotted_rgb, encode_params)
+
+            orig_for_encode = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            boxed_for_encode = cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB)
+
+            encode_start = time.time()
+            ok_orig, orig_buf = cv2.imencode(".jpg", orig_for_encode, encode_params)
+            ok_boxed, boxed_buf = cv2.imencode(".jpg", boxed_for_encode, encode_params)
+            encode_end = time.time()
+            encode_ms = (encode_end - encode_start) * 1000.0
             if not (ok_orig and ok_boxed):
                 print("JPEG encoding failed, skipping frame.")
                 continue
@@ -138,6 +162,9 @@ class CameraInferenceService:
                 self._latest_detection = boxed_buf.tobytes()
                 self._updated_at = time.time()
                 self._frame_seq += 1
+                self._last_inference_ms = float(inference_ms)
+                self._last_encode_ms = float(encode_ms)
+                self._last_loop_ms = float((time.time() - loop_start) * 1000.0)
                 self._condition.notify_all()
 
             if self.config.capture_interval > 0:
@@ -162,9 +189,9 @@ def create_app(service: CameraInferenceService) -> Flask:
   </style>
 </head>
 <body>
-  <div class="wrapper">
+    <div class="wrapper">
     <h1>YOLO Camera Monitor</h1>
-    <p>최근 업데이트: <span id="updated-text">대기 중...</span></p>
+    <p>최근 업데이트: <span id="updated-text">대기 중...</span> — 추론: <span id="inference-text">--</span> — 루프(ms): <span id="loop-text">--</span></p>
     <div class="images">
       <div>
         <h3>원본</h3>
@@ -177,25 +204,33 @@ def create_app(service: CameraInferenceService) -> Flask:
     </div>
   </div>
   <script>
-    const updatedText = document.getElementById("updated-text");
+        const updatedText = document.getElementById("updated-text");
+        const inferenceText = document.getElementById("inference-text");
+        const loopText = document.getElementById("loop-text");
 
-    async function refreshTimestamp() {
-      try {
-        const response = await fetch("{{ url_for('status') }}?t=" + Date.now());
-        const data = await response.json();
-        if (data.updated_at) {
-          const ts = new Date(data.updated_at * 1000);
-          updatedText.textContent = ts.toLocaleString();
-        } else {
-          updatedText.textContent = "대기 중...";
+        async function refreshTimestamp() {
+            try {
+                const response = await fetch("{{ url_for('status') }}?t=" + Date.now());
+                const data = await response.json();
+                if (data.updated_at) {
+                    const ts = new Date(data.updated_at * 1000);
+                    updatedText.textContent = ts.toLocaleString();
+                } else {
+                    updatedText.textContent = "대기 중...";
+                }
+                if (data.inference_ms !== undefined) {
+                    inferenceText.textContent = data.inference_ms.toFixed(1) + ' ms';
+                }
+                if (data.loop_ms !== undefined) {
+                    loopText.textContent = data.loop_ms.toFixed(1) + ' ms';
+                }
+            } catch (err) {
+                console.error(err);
+            }
         }
-      } catch (err) {
-        console.error(err);
-      }
-    }
 
-    refreshTimestamp();
-    setInterval(refreshTimestamp, 33);
+        refreshTimestamp();
+        setInterval(refreshTimestamp, 250);
   </script>
 </body>
 </html>
@@ -216,7 +251,10 @@ def create_app(service: CameraInferenceService) -> Flask:
 
     @app.route("/status")
     def status():
-        return jsonify({"updated_at": service.get_last_updated()})
+        stats = service.get_stats()
+        data = {"updated_at": service.get_last_updated()}
+        data.update(stats)
+        return jsonify(data)
 
     return app
 
@@ -230,7 +268,9 @@ def main() -> None:
     app = create_app(service)
     print(f"Serving live stream at http://{config.host}:{config.port}")
     try:
-        app.run(host=config.host, port=config.port, debug=config.debug, use_reloader=False)
+        app.run(
+            host=config.host, port=config.port, debug=config.debug, use_reloader=False
+        )
     finally:
         service.stop()
 
