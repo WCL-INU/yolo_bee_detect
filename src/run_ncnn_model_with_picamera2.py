@@ -30,7 +30,7 @@ def load_config() -> AppConfig:
     return AppConfig(
         model_path=Path(os.getenv("NCNN_MODEL_PATH", "./model.ncnn")),
         confidence_threshold=float(os.getenv("INFERENCE_CONFIDENCE_THRESHOLD", "0.5")),
-        capture_interval=float(os.getenv("CAMERA_FRAME_INTERVAL", "0.5")),
+        capture_interval=float(os.getenv("CAMERA_FRAME_INTERVAL", "0.03")),
         jpeg_quality=int(os.getenv("STREAM_JPEG_QUALITY", "80")),
         host=os.getenv("SERVER_HOST", "0.0.0.0"),
         port=int(os.getenv("SERVER_PORT", "8000")),
@@ -54,7 +54,7 @@ class CameraInferenceService:
         self._frame_seq: int = 0
 
     def start(self) -> None:
-        preview = self.picam2.create_preview_configuration(main={"format": "RGB888"})
+        preview = self.picam2.create_preview_configuration(main={"format": "BGR888"})
         self.picam2.configure(preview)
         self.picam2.start()
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -107,17 +107,15 @@ class CameraInferenceService:
         encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality]
         while not self._stop.is_set():
             try:
-                frame = self.picam2.capture_array("main")
+                bgr = self.picam2.capture_array()
             except Exception as exc:
                 print(f"Camera capture failed: {exc}")
                 time.sleep(0.2)
                 continue
 
-            if frame is None:
+            if bgr is None:
                 time.sleep(0.05)
                 continue
-
-            bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
             try:
                 results = self.model(bgr, conf=self.config.confidence_threshold)
@@ -127,8 +125,10 @@ class CameraInferenceService:
                 continue
 
             plotted = results[0].plot() if results else bgr
-            ok_orig, orig_buf = cv2.imencode(".jpg", bgr, encode_params)
-            ok_boxed, boxed_buf = cv2.imencode(".jpg", plotted, encode_params)
+            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            plotted_rgb = cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB)
+            ok_orig, orig_buf = cv2.imencode(".jpg", rgb, encode_params)
+            ok_boxed, boxed_buf = cv2.imencode(".jpg", plotted_rgb, encode_params)
             if not (ok_orig and ok_boxed):
                 print("JPEG encoding failed, skipping frame.")
                 continue
@@ -195,7 +195,7 @@ def create_app(service: CameraInferenceService) -> Flask:
     }
 
     refreshTimestamp();
-    setInterval(refreshTimestamp, 1000);
+    setInterval(refreshTimestamp, 33);
   </script>
 </body>
 </html>
