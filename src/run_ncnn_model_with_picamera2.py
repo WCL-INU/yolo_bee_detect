@@ -60,11 +60,8 @@ class CameraInferenceService:
         self._last_loop_ms: float = 0.0
 
     def start(self) -> None:
-        # Allow camera format to be configured (e.g. "BGR888" or "RGB888")
-        preview = self.picam2.create_preview_configuration(
-            main={"format": self.config.camera_format}
-        )
-        self.picam2.configure(preview)
+        camera_config = self.picam2.create_preview_configuration(main={"format": "BGR888"})
+        self.picam2.configure(camera_config)
         self.picam2.start()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
