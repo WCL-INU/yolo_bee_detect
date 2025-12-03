@@ -10,7 +10,8 @@ model = YOLO("yolo11n.pt")  # load a pretrained model (recommended for training)
 dotenv.load_dotenv()
 data_dir = os.getenv("DATA_PATH", "./data")
 yaml_path = os.getenv("DATA_YAML_PATH", f"{data_dir}/data.yaml")
+project_dir = os.getenv("PROJECT_PATH", "./runs")
 
 if __name__ == "__main__":
     # Train the model
-    results = model.train(data=yaml_path, epochs=1000, patience=100, imgsz=416, batch=4)
+    results = model.train(data=yaml_path, epochs=1000, patience=100, imgsz=320, batch=4, project=project_dir)
