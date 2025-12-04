@@ -60,7 +60,7 @@ class CameraInferenceService:
         self._last_loop_ms: float = 0.0
 
     def start(self) -> None:
-        camera_config = self.picam2.create_preview_configuration(main={"format": "BGR888"})
+        camera_config = self.picam2.create_video_configuration(main={"size":(1640, 1232), "format": "RGB888"})
         self.picam2.configure(camera_config)
         self.picam2.start()
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -142,12 +142,9 @@ class CameraInferenceService:
 
             plotted = results[0].plot() if results else bgr
 
-            orig_for_encode = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            boxed_for_encode = cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB)
-
             encode_start = time.time()
-            ok_orig, orig_buf = cv2.imencode(".jpg", orig_for_encode, encode_params)
-            ok_boxed, boxed_buf = cv2.imencode(".jpg", boxed_for_encode, encode_params)
+            ok_orig, orig_buf = cv2.imencode(".jpg", bgr, encode_params)
+            ok_boxed, boxed_buf = cv2.imencode(".jpg", plotted, encode_params)
             encode_end = time.time()
             encode_ms = (encode_end - encode_start) * 1000.0
             if not (ok_orig and ok_boxed):
