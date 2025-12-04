@@ -60,7 +60,12 @@ class CameraInferenceService:
         self._last_loop_ms: float = 0.0
 
     def start(self) -> None:
-        camera_config = self.picam2.create_video_configuration(main={"size":(1640, 1232), "format": "RGB888"})
+        camera_config = self.picam2.create_video_configuration(
+            main={"size": (1640, 1232), "format": "RGB888"},
+            buffer_count=32,
+            sensor={"bit_depth": 8},
+            controls={"FrameDurationLimits": (10000, 33333)},
+        )
         self.picam2.configure(camera_config)
         self.picam2.start()
         self._thread = threading.Thread(target=self._loop, daemon=True)
