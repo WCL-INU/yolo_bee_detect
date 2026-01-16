@@ -22,7 +22,7 @@ class ExportConfig:
 def load_config() -> ExportConfig:
     """Load runtime configuration from environment variables."""
     return ExportConfig(
-        model_path=Path(os.getenv("MODEL_PATH", "./model.pt")),
+        model_path=Path(os.getenv("TEMP_MODEL_PATH", "./model.pt")),
         format=os.getenv("EXPORT_FORMAT", "tflite"),
         imgsz=int(os.getenv("EXPORT_IMGSZ", "640")),
         int8=os.getenv("EXPORT_INT8", "1") == "1",

@@ -25,7 +25,7 @@ class AppConfig:
 def load_config() -> AppConfig:
     """Load runtime configuration from environment variables."""
     return AppConfig(
-        model_path=Path(os.getenv("MODEL_PATH", "./model.pt")),
+        model_path=Path(os.getenv("TEMP_MODEL_PATH", "./model.pt")),
         input_data_path=Path(os.getenv("INPUT_DATA_PATH", "./input_data")),
         output_data_path=Path(os.getenv("OUTPUT_DATA_PATH", "./output_data")),
         host=os.getenv("SERVER_HOST", "0.0.0.0"),
@@ -59,7 +59,7 @@ def run_inference(
             print(f"Skipping unreadable file: {image_path.name}")
             continue
 
-        results = model(image)
+        results = model(image, conf=0.5)
         plotted = results[0].plot()  # BGR array with boxes and labels
 
         orig_name = image_path.name

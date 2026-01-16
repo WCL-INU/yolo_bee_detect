@@ -26,7 +26,7 @@ class AppConfig:
 def load_config() -> AppConfig:
     """Load runtime configuration from environment variables."""
     return AppConfig(
-        model_path=Path(os.getenv("NCNN_MODEL_PATH", "./model.ncnn")),
+        model_path=Path(os.getenv("TEMP_NCNN_MODEL_PATH", "./model.ncnn")),
         confidence_threshold=float(os.getenv("INFERENCE_CONFIDENCE_THRESHOLD", "0.5")),
         input_data_path=Path(os.getenv("INPUT_DATA_PATH", "./input_data")),
         output_data_path=Path(os.getenv("OUTPUT_DATA_PATH", "./output_data")),

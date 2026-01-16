@@ -25,7 +25,7 @@ class AppConfig:
 def load_config() -> AppConfig:
     """Load runtime configuration from environment variables."""
     return AppConfig(
-        model_path=Path(os.getenv("TFLITE_MODEL_PATH", "./model.tflite")),
+        model_path=Path(os.getenv("TEMP_TFLITE_MODEL_PATH", "./model.tflite")),
         input_data_path=Path(os.getenv("INPUT_DATA_PATH", "./input_data")),
         output_data_path=Path(os.getenv("OUTPUT_DATA_PATH", "./output_data")),
         host=os.getenv("SERVER_HOST", "0.0.0.0"),

@@ -15,4 +15,4 @@ project_dir = os.getenv("PROJECT_PATH", "./runs")
 
 if __name__ == "__main__":
     # Train the model
-    results = model.train(data=yaml_path, cfg=hyperparameters_path, epochs=1000, patience=100, imgsz=320, batch=4, project=project_dir)
+    results = model.train(data=yaml_path, cfg=hyperparameters_path, epochs=1000, patience=75, imgsz=416, batch=4, project=project_dir)
