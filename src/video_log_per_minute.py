@@ -5,13 +5,21 @@ import os
 from datetime import datetime, timedelta
 
 # 1. 모델 및 영상 경로 설정
-model = YOLO("/home/berry/WCL_bee/yolo_bee_detect/runs/detect/train21/weights/best.pt")
-video_path = "/mnt/d/bee/cut_output_merged_6_0108.mp4"
-# video_path = "/mnt/c/Users/berry/Downloads/KakaoTalk_20251219_165218533.mp4"
-# output_video_path = "/mnt/c/Users/berry/Desktop/mybee/output_video_csv/output_with_count_2.mp4"
-output_dir = "/mnt/d/bee/cut_output_merged_6_0108"
+model_path = os.getenv("YOLO_MODEL_PATH")
+video_path = os.getenv("VIDEO_PATH")
+output_dir = os.getenv("OUTPUT_DIR")
+output_log_path = os.getenv("OUTPUT_LOG_PATH")
+
+if not model_path or not video_path or not output_dir or not output_log_path:
+    print("환경 변수 YOLO_MODEL_PATH, VIDEO_PATH, OUTPUT_DIR, OUTPUT_LOG_PATH를 설정해주세요.")
+    sys.exit()
+
+print("모델 경로:", model_path)
+print("영상 경로:", video_path)
+print("출력 디렉토리:", output_dir)
+print("출력 로그 파일 경로:", output_log_path)
 os.makedirs(output_dir, exist_ok=True)
-output_log_path = "/mnt/d/bee/cut_output_merged_6_0108/cut_output_merged_6_0108_log.txt"
+model = YOLO(model_path)
 
 # 2. 영상 정보 읽기
 cap = cv2.VideoCapture(video_path)

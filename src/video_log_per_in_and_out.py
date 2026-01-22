@@ -8,26 +8,33 @@ from datetime import datetime, timedelta
 # ==============================================================================
 # 1. 설정 및 경로
 # ==============================================================================
-model_path = "/home/berry/WCL_bee/yolo_bee_detect/models/train_20251231/weights/best.pt"
-video_path = "/mnt/e/tmp/mp4_files/cut_output_merged_15.mp4"
+model_path = os.getenv("YOLO_MODEL_PATH")
+video_path = os.getenv("VIDEO_PATH")
 
 # 결과 저장 경로
-output_dir = "/mnt/c/Users/berry/Desktop/mybee/output_video_csv/cut_output_merged_15_entrance"
+output_dir = os.getenv("OUTPUT_DIR")
 os.makedirs(output_dir, exist_ok=True)
-output_log_path = "/mnt/c/Users/berry/Desktop/mybee/output_video_csv/cut_output_merged_15_entrance/cut_output_merged_15_log_entrance.txt"
+output_log_path = os.getenv("OUTPUT_LOG_PATH")
 
 # ------------------------------------------------------------------------------
 # ★ 카운팅 기준선 설정 (영상 해상도에 맞춰 조절 필요) ★
 # ------------------------------------------------------------------------------
 # Y좌표 (높이), in/out
-LINE_IN_Y = 1050  # 파란선 (위 -> 아래 통과 시 IN)
-LINE_OUT_Y = 1075  # 빨간선 (아래 -> 위 통과 시 OUT)
+LINE_IN_Y = int(os.getenv("LINE_IN_Y"))  # 파란선 (위 -> 아래 통과 시 IN)
+LINE_OUT_Y = int(os.getenv("LINE_OUT_Y"))  # 빨간선 (아래 -> 위 통과 시 OUT)
 # 1150/1200: 2, 17
 # 1125/1175: 4
 # 1100/1150: 18
 # 1100/1125: 14
 # 1050/1100: 3
 # 1050/1075: 15
+
+print("모델 경로:", model_path)
+print("영상 경로:", video_path)
+print("출력 디렉토리:", output_dir)
+print("출력 로그 파일 경로:", output_log_path)
+print(f"IN 기준선 Y좌표: {LINE_IN_Y}, OUT 기준선 Y좌표: {LINE_OUT_Y}")
+# exit(0)
 
 # X좌표 (가로 폭 제한)
 LINE_X_START = 40
