@@ -5,9 +5,10 @@ import os
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
+import pyarrow as pa
 import pyarrow.parquet as pq
 
-CHUNK_SIZE = 2000000  # 2 million rows per chunk
+CHUNK_SIZE = 200000000  # 200 million rows per chunk
 
 
 def main():
@@ -22,14 +23,15 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
     video_name = os.path.splitext(os.path.basename(video_path))[0]
-    output_log_path = []
+    out_parquet = os.path.join(output_dir, f"{video_name}.parquet")
+
     print("모델 경로:", model_path)
     print("영상 경로:", video_path)
     print("영상 이름:", video_name)
     print("출력 디렉토리:", output_dir)
     print(
         "출력 로그 경로 형태:",
-        os.path.join(output_dir, f"{video_name}_<chunk_number>_<frame_index>.parquet"),
+        out_parquet,
     )
 
     # YOLO 모델 로드
@@ -40,110 +42,137 @@ def main():
     if not cap.isOpened():
         print("영상을 열 수 없습니다.")
         sys.exit()
-
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    # 박스 기록 변수
-    # df = pd.DataFrame(columns=["frame", "box_index", "x", "y", "width", "height"])
-    df = pd.DataFrame(
-        {
-            "frame": pd.Series(dtype="uint32"),
-            "box_index": pd.Series(dtype="uint32"),
-            "x": pd.Series(dtype="uint16"),
-            "y": pd.Series(dtype="uint16"),
-            "width": pd.Series(dtype="uint16"),
-            "height": pd.Series(dtype="uint16"),
-        }
-    )
+    cap.release()
 
     # 추론 시작
-    results = model.predict(source=video_path, stream=True, verbose=False)
-    frames = []
-    box_indices = []
-    xs = []
-    ys = []
-    ws = []
-    hs = []
+    results = model.predict(source=video_path, stream=True, verbose=False, batch=16)
+
+    # 누적 버퍼 (numpy로 누적, pandas 금지)
+    buf_frame = []
+    buf_boxi = []
+    buf_x = []
+    buf_y = []
+    buf_w = []
+    buf_h = []
+    buf_rows = 0
+
+    schema = pa.schema(
+        [
+            ("frame", pa.uint32()),
+            ("box_index", pa.uint32()),
+            ("x", pa.uint16()),
+            ("y", pa.uint16()),
+            ("width", pa.uint16()),
+            ("height", pa.uint16()),
+        ]
+    )
+
+    writer = pq.ParquetWriter(
+        out_parquet,
+        schema=schema,
+        compression="zstd",
+        use_dictionary=True,
+        write_statistics=False,  # 속도 우선이면 False가 유리한 경우 많음
+    )
+
     frame_index = -1
-    chunk_number = -1
-    for _, result in enumerate(results):
-        frame_index += 1
+    try:
+        for result in results:
+            frame_index += 1
 
-        boxes = result.boxes
+            # # 진행률 표시 (10프레임마다)
+            if frame_index % 10 == 0:
+                progress = (frame_index / total_frames) * 100
+                print(
+                    f"...{frame_index} / {total_frames} ({progress:.2f}%) 진행 중",
+                    end="\r",
+                    flush=True,
+                )
 
-        # --------------------------------------------------
-        # 1. 로그 기록
-        # --------------------------------------------------
+            # --------------------------------------------------
+            # 1. 로그 기록
+            # --------------------------------------------------
+            boxes = result.boxes
+            if boxes is None or len(boxes) == 0:
+                continue
 
-        if boxes is None or len(boxes) == 0:
-            continue
+            xywh = boxes.xywh
+            if xywh is None or xywh.shape[0] == 0:
+                continue
 
-        # 박스 정보 나열
-        for box in boxes:
-            x_i, y_i, width_i, height_i = box.xywh[0].cpu().numpy()
-            xs.append(int(x_i))
-            ys.append(int(y_i))
-            ws.append(int(width_i))
-            hs.append(int(height_i))
-        frames.extend([frame_index] * len(boxes))
-        box_indices.extend(list(range(len(boxes))))
+            arr = xywh.cpu().numpy()  # (N,4) 한번만
+            n = arr.shape[0]
 
-        # 청크 단위로 저장
-        if len(frames) >= CHUNK_SIZE:
-            chunk_number = chunk_number + 1
+            # uint16 범위 넘어갈 수 있으면 clip 또는 uint32로 바꾸세요.
+            x = arr[:, 0].astype(np.uint16)
+            y = arr[:, 1].astype(np.uint16)
+            w = arr[:, 2].astype(np.uint16)
+            h = arr[:, 3].astype(np.uint16)
 
-            chunk_data = pd.DataFrame(
-                {
-                    "frame": pd.Series(frames[:CHUNK_SIZE], dtype="uint32"),
-                    "box_index": pd.Series(box_indices[:CHUNK_SIZE], dtype="uint32"),
-                    "x": pd.Series(xs[:CHUNK_SIZE], dtype="uint16"),
-                    "y": pd.Series(ys[:CHUNK_SIZE], dtype="uint16"),
-                    "width": pd.Series(ws[:CHUNK_SIZE], dtype="uint16"),
-                    "height": pd.Series(hs[:CHUNK_SIZE], dtype="uint16"),
-                }
+            buf_frame.append(np.full(n, frame_index, dtype=np.uint32))
+            buf_boxi.append(np.arange(n, dtype=np.uint32))
+            buf_x.append(x)
+            buf_y.append(y)
+            buf_w.append(w)
+            buf_h.append(h)
+            buf_rows += n
+
+            # 청크 단위로 저장
+            if buf_rows >= CHUNK_SIZE:
+                frame_col = np.concatenate(buf_frame)
+                boxi_col = np.concatenate(buf_boxi)
+                x_col = np.concatenate(buf_x)
+                y_col = np.concatenate(buf_y)
+                w_col = np.concatenate(buf_w)
+                h_col = np.concatenate(buf_h)
+
+                table = pa.Table.from_arrays(
+                    [
+                        pa.array(frame_col, type=pa.uint32()),
+                        pa.array(boxi_col, type=pa.uint32()),
+                        pa.array(x_col, type=pa.uint16()),
+                        pa.array(y_col, type=pa.uint16()),
+                        pa.array(w_col, type=pa.uint16()),
+                        pa.array(h_col, type=pa.uint16()),
+                    ],
+                    schema=schema,
+                )
+                writer.write_table(table)
+
+                buf_frame.clear()
+                buf_boxi.clear()
+                buf_x.clear()
+                buf_y.clear()
+                buf_w.clear()
+                buf_h.clear()
+                buf_rows = 0
+
+        # flush 남은 것
+        if buf_rows > 0:
+            frame_col = np.concatenate(buf_frame)
+            boxi_col = np.concatenate(buf_boxi)
+            x_col = np.concatenate(buf_x)
+            y_col = np.concatenate(buf_y)
+            w_col = np.concatenate(buf_w)
+            h_col = np.concatenate(buf_h)
+
+            table = pa.Table.from_arrays(
+                [
+                    pa.array(frame_col, type=pa.uint32()),
+                    pa.array(boxi_col, type=pa.uint32()),
+                    pa.array(x_col, type=pa.uint16()),
+                    pa.array(y_col, type=pa.uint16()),
+                    pa.array(w_col, type=pa.uint16()),
+                    pa.array(h_col, type=pa.uint16()),
+                ],
+                schema=schema,
             )
+            writer.write_table(table)
+    finally:
+        writer.close()
 
-            frames = frames[CHUNK_SIZE:]
-            box_indices = box_indices[CHUNK_SIZE:]
-            xs = xs[CHUNK_SIZE:]
-            ys = ys[CHUNK_SIZE:]
-            ws = ws[CHUNK_SIZE:]
-            hs = hs[CHUNK_SIZE:]
-
-            chunk_data.to_parquet(
-                os.path.join(
-                    output_dir,
-                    f"{video_name}_{chunk_number:04d}_{frame_index:04d}.parquet",
-                ),
-                engine="pyarrow",
-                compression="zstd",
-                index=False,
-            )
-
-        # # 진행률 표시 (1000프레임마다)
-        # if frame_index % 1000 == 0:
-        progress = (frame_index / total_frames) * 100
-        print(f"... {progress:.2f}% 진행 중", end="\r")
-
-    # 남은 데이터 저장
-    if len(df) > 0:
-        chunk_number = chunk_number + 1
-
-        chunk_data = pd.DataFrame(df[:CHUNK_SIZE])
-        df = df[CHUNK_SIZE:]
-
-        chunk_data.to_parquet(
-            os.path.join(
-                output_dir,
-                f"{video_name}_{chunk_number:04d}_{frame_index:04d}.parquet",
-            ),
-            engine="pyarrow",
-            compression="zstd",
-            index=False,
-        )
-
-    cap.release()
-    print(f"생성된 로그 파일: {output_log_path}")
+    print(f"생성된 로그 파일: {out_parquet}\n")
     return
 
 
