@@ -1,858 +1,186 @@
 import os
 import sys
 import time
-import subprocess
-import random
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
-from typing import Dict, List, Optional
 import selectors
+import subprocess
+from dataclasses import dataclass
+from collections import deque
+from typing import Deque, List, Optional
 
 
-def main():
-    print("Hello from yolo-bee-detect!")
+MAX_WORKERS = 3
+REFRESH_SEC = 0.0001
 
-    video_dir = "/mnt/videos"
-    """# video_list = [
-    #     # "cut_ANU-25-summer-10_20251219.mp4",
-    #     # "cut_ANU-25-summer-10_20251220.mp4",
-    #     # "cut_ANU-25-summer-10_20251221.mp4",
-    #     # "cut_ANU-25-summer-10_20251225.mp4",
-    #     # "cut_ANU-25-summer-10_20251226.mp4",
-    #     # "cut_ANU-25-summer-10_20251227.mp4",
-    #     # "cut_ANU-25-summer-10_20251228.mp4",
-    #     # "cut_ANU-25-summer-10_20251229.mp4",
-    #     # "cut_ANU-25-summer-10_20251230.mp4",
-    #     # "cut_ANU-25-summer-10_20251231.mp4",
-    #     # "cut_ANU-25-summer-10_20260101.mp4",
-    #     # "cut_ANU-25-summer-10_20260102.mp4",
-    #     # "cut_ANU-25-summer-10_20260103.mp4",
-    #     # "cut_ANU-25-summer-10_20260104.mp4",
-    #     "cut_ANU-25-summer-10_20260105.mp4",
-    #     "cut_ANU-25-summer-10_20260107.mp4",
-    #     "cut_ANU-25-summer-10_20260108.mp4",
-    #     "cut_ANU-25-summer-10_20260109.mp4",
-    #     "cut_ANU-25-summer-10_20260110.mp4",
-    #     "cut_ANU-25-summer-10_20260111.mp4",
-    #     "cut_ANU-25-summer-10_20260112.mp4",
-    #     "cut_ANU-25-summer-10_20260113.mp4",
-    #     "cut_ANU-25-summer-11_20251219.mp4",
-    #     "cut_ANU-25-summer-11_20251220.mp4",
-    #     "cut_ANU-25-summer-11_20251221.mp4",
-    #     "cut_ANU-25-summer-11_20251225.mp4",
-    #     "cut_ANU-25-summer-11_20251226.mp4",
-    #     "cut_ANU-25-summer-11_20251227.mp4",
-    #     "cut_ANU-25-summer-11_20251228.mp4",
-    #     "cut_ANU-25-summer-11_20251229.mp4",
-    #     "cut_ANU-25-summer-11_20251230.mp4",
-    #     "cut_ANU-25-summer-11_20251231.mp4",
-    #     "cut_ANU-25-summer-11_20260101.mp4",
-    #     "cut_ANU-25-summer-11_20260102.mp4",
-    #     "cut_ANU-25-summer-11_20260103.mp4",
-    #     "cut_ANU-25-summer-11_20260104.mp4",
-    #     "cut_ANU-25-summer-11_20260105.mp4",
-    #     "cut_ANU-25-summer-13_20251219.mp4",
-    #     "cut_ANU-25-summer-13_20251220.mp4",
-    #     "cut_ANU-25-summer-13_20251221.mp4",
-    #     "cut_ANU-25-summer-13_20251225.mp4",
-    #     "cut_ANU-25-summer-13_20251226.mp4",
-    #     "cut_ANU-25-summer-13_20251227.mp4",
-    #     "cut_ANU-25-summer-13_20251228.mp4",
-    #     "cut_ANU-25-summer-13_20251229.mp4",
-    #     "cut_ANU-25-summer-13_20251230.mp4",
-    #     "cut_ANU-25-summer-13_20251231.mp4",
-    #     "cut_ANU-25-summer-13_20260101.mp4",
-    #     "cut_ANU-25-summer-13_20260102.mp4",
-    #     "cut_ANU-25-summer-13_20260103.mp4",
-    #     "cut_ANU-25-summer-13_20260104.mp4",
-    #     "cut_ANU-25-summer-13_20260105.mp4",
-    #     "cut_ANU-25-summer-13_20260107.mp4",
-    #     "cut_ANU-25-summer-13_20260108.mp4",
-    #     "cut_ANU-25-summer-13_20260109.mp4",
-    #     "cut_ANU-25-summer-13_20260110.mp4",
-    #     "cut_ANU-25-summer-13_20260111.mp4",
-    #     "cut_ANU-25-summer-13_20260112.mp4",
-    #     "cut_ANU-25-summer-13_20260113.mp4",
-    #     "cut_ANU-25-summer-14_20251219.mp4",
-    #     "cut_ANU-25-summer-14_20251220.mp4",
-    #     "cut_ANU-25-summer-14_20251221.mp4",
-    #     "cut_ANU-25-summer-14_20251225.mp4",
-    #     "cut_ANU-25-summer-14_20251226.mp4",
-    #     "cut_ANU-25-summer-14_20251227.mp4",
-    #     "cut_ANU-25-summer-14_20251228.mp4",
-    #     "cut_ANU-25-summer-14_20251229.mp4",
-    #     "cut_ANU-25-summer-14_20251230.mp4",
-    #     "cut_ANU-25-summer-14_20251231.mp4",
-    #     "cut_ANU-25-summer-14_20260101.mp4",
-    #     "cut_ANU-25-summer-14_20260102.mp4",
-    #     "cut_ANU-25-summer-14_20260103.mp4",
-    #     "cut_ANU-25-summer-14_20260104.mp4",
-    #     "cut_ANU-25-summer-14_20260105.mp4",
-    #     "cut_ANU-25-summer-14_20260107.mp4",
-    #     "cut_ANU-25-summer-14_20260108.mp4",
-    #     "cut_ANU-25-summer-14_20260109.mp4",
-    #     "cut_ANU-25-summer-14_20260110.mp4",
-    #     "cut_ANU-25-summer-14_20260111.mp4",
-    #     "cut_ANU-25-summer-14_20260112.mp4",
-    #     "cut_ANU-25-summer-14_20260113.mp4",
-    #     "cut_ANU-25-summer-15_20251219.mp4",
-    #     "cut_ANU-25-summer-15_20251220.mp4",
-    #     "cut_ANU-25-summer-15_20251221.mp4",
-    #     "cut_ANU-25-summer-15_20251225.mp4",
-    #     "cut_ANU-25-summer-15_20251226.mp4",
-    #     "cut_ANU-25-summer-15_20251227.mp4",
-    #     "cut_ANU-25-summer-15_20251228.mp4",
-    #     "cut_ANU-25-summer-15_20251229.mp4",
-    #     "cut_ANU-25-summer-15_20251230.mp4",
-    #     "cut_ANU-25-summer-15_20251231.mp4",
-    #     "cut_ANU-25-summer-15_20260101.mp4",
-    #     "cut_ANU-25-summer-15_20260102.mp4",
-    #     "cut_ANU-25-summer-15_20260103.mp4",
-    #     "cut_ANU-25-summer-15_20260104.mp4",
-    #     "cut_ANU-25-summer-15_20260105.mp4",
-    #     "cut_ANU-25-summer-15_20260107.mp4",
-    #     "cut_ANU-25-summer-15_20260108.mp4",
-    #     "cut_ANU-25-summer-15_20260109.mp4",
-    #     "cut_ANU-25-summer-15_20260110.mp4",
-    #     "cut_ANU-25-summer-15_20260111.mp4",
-    #     "cut_ANU-25-summer-15_20260112.mp4",
-    #     "cut_ANU-25-summer-15_20260113.mp4",
-    #     "cut_ANU-25-summer-16_20251219.mp4",
-    #     "cut_ANU-25-summer-16_20251220.mp4",
-    #     "cut_ANU-25-summer-16_20251221.mp4",
-    #     "cut_ANU-25-summer-16_20251225.mp4",
-    #     "cut_ANU-25-summer-16_20251226.mp4",
-    #     "cut_ANU-25-summer-16_20251227.mp4",
-    #     "cut_ANU-25-summer-16_20251228.mp4",
-    #     "cut_ANU-25-summer-16_20251229.mp4",
-    #     "cut_ANU-25-summer-16_20251230.mp4",
-    #     "cut_ANU-25-summer-16_20251231.mp4",
-    #     "cut_ANU-25-summer-16_20260101.mp4",
-    #     "cut_ANU-25-summer-16_20260102.mp4",
-    #     "cut_ANU-25-summer-16_20260103.mp4",
-    #     "cut_ANU-25-summer-16_20260104.mp4",
-    #     "cut_ANU-25-summer-16_20260105.mp4",
-    #     "cut_ANU-25-summer-16_20260107.mp4",
-    #     "cut_ANU-25-summer-16_20260108.mp4",
-    #     "cut_ANU-25-summer-16_20260109.mp4",
-    #     "cut_ANU-25-summer-16_20260110.mp4",
-    #     "cut_ANU-25-summer-16_20260111.mp4",
-    #     "cut_ANU-25-summer-16_20260112.mp4",
-    #     "cut_ANU-25-summer-16_20260113.mp4",
-    #     "cut_ANU-25-summer-17_20251219.mp4",
-    #     "cut_ANU-25-summer-17_20251220.mp4",
-    #     "cut_ANU-25-summer-17_20251221.mp4",
-    #     "cut_ANU-25-summer-17_20251225.mp4",
-    #     "cut_ANU-25-summer-17_20251226.mp4",
-    #     "cut_ANU-25-summer-17_20251227.mp4",
-    #     "cut_ANU-25-summer-17_20251228.mp4",
-    #     "cut_ANU-25-summer-17_20251229.mp4",
-    #     "cut_ANU-25-summer-17_20251230.mp4",
-    #     "cut_ANU-25-summer-17_20251231.mp4",
-    #     "cut_ANU-25-summer-17_20260101.mp4",
-    #     "cut_ANU-25-summer-17_20260102.mp4",
-    #     "cut_ANU-25-summer-17_20260103.mp4",
-    #     "cut_ANU-25-summer-17_20260104.mp4",
-    #     "cut_ANU-25-summer-17_20260105.mp4",
-    #     "cut_ANU-25-summer-17_20260107.mp4",
-    #     "cut_ANU-25-summer-17_20260108.mp4",
-    #     "cut_ANU-25-summer-17_20260109.mp4",
-    #     "cut_ANU-25-summer-17_20260110.mp4",
-    #     "cut_ANU-25-summer-17_20260111.mp4",
-    #     "cut_ANU-25-summer-17_20260112.mp4",
-    #     "cut_ANU-25-summer-17_20260113.mp4",
-    #     "cut_ANU-25-summer-18_20251219.mp4",
-    #     "cut_ANU-25-summer-18_20251220.mp4",
-    #     "cut_ANU-25-summer-18_20251221.mp4",
-    #     "cut_ANU-25-summer-18_20251225.mp4",
-    #     "cut_ANU-25-summer-18_20251226.mp4",
-    #     "cut_ANU-25-summer-18_20251227.mp4",
-    #     "cut_ANU-25-summer-18_20251228.mp4",
-    #     "cut_ANU-25-summer-18_20251229.mp4",
-    #     "cut_ANU-25-summer-18_20251230.mp4",
-    #     "cut_ANU-25-summer-18_20251231.mp4",
-    #     "cut_ANU-25-summer-18_20260101.mp4",
-    #     "cut_ANU-25-summer-18_20260102.mp4",
-    #     "cut_ANU-25-summer-18_20260103.mp4",
-    #     "cut_ANU-25-summer-18_20260104.mp4",
-    #     "cut_ANU-25-summer-18_20260105.mp4",
-    #     "cut_ANU-25-summer-18_20260107.mp4",
-    #     "cut_ANU-25-summer-18_20260108.mp4",
-    #     "cut_ANU-25-summer-18_20260109.mp4",
-    #     "cut_ANU-25-summer-18_20260110.mp4",
-    #     "cut_ANU-25-summer-18_20260111.mp4",
-    #     "cut_ANU-25-summer-18_20260112.mp4",
-    #     "cut_ANU-25-summer-18_20260113.mp4",
-    #     "cut_ANU-25-summer-19_20251219.mp4",
-    #     "cut_ANU-25-summer-19_20251220.mp4",
-    #     "cut_ANU-25-summer-19_20251221.mp4",
-    #     "cut_ANU-25-summer-19_20251225.mp4",
-    #     "cut_ANU-25-summer-19_20251226.mp4",
-    #     "cut_ANU-25-summer-19_20251227.mp4",
-    #     "cut_ANU-25-summer-19_20251228.mp4",
-    #     "cut_ANU-25-summer-19_20251229.mp4",
-    #     "cut_ANU-25-summer-19_20251230.mp4",
-    #     "cut_ANU-25-summer-19_20251231.mp4",
-    #     "cut_ANU-25-summer-19_20260101.mp4",
-    #     "cut_ANU-25-summer-19_20260102.mp4",
-    #     "cut_ANU-25-summer-19_20260103.mp4",
-    #     "cut_ANU-25-summer-19_20260104.mp4",
-    #     "cut_ANU-25-summer-19_20260105.mp4",
-    #     "cut_ANU-25-summer-19_20260107.mp4",
-    #     "cut_ANU-25-summer-19_20260108.mp4",
-    #     "cut_ANU-25-summer-19_20260109.mp4",
-    #     "cut_ANU-25-summer-19_20260110.mp4",
-    #     "cut_ANU-25-summer-19_20260111.mp4",
-    #     "cut_ANU-25-summer-19_20260112.mp4",
-    #     "cut_ANU-25-summer-19_20260113.mp4",
-    #     "cut_ANU-25-summer-1_20251219.mp4",
-    #     "cut_ANU-25-summer-1_20251220.mp4",
-    #     "cut_ANU-25-summer-1_20251221.mp4",
-    #     "cut_ANU-25-summer-1_20251225.mp4",
-    #     "cut_ANU-25-summer-1_20251226.mp4",
-    #     "cut_ANU-25-summer-1_20251227.mp4",
-    #     "cut_ANU-25-summer-1_20251228.mp4",
-    #     "cut_ANU-25-summer-1_20251229.mp4",
-    #     "cut_ANU-25-summer-1_20251230.mp4",
-    #     "cut_ANU-25-summer-1_20251231.mp4",
-    #     "cut_ANU-25-summer-1_20260101.mp4",
-    #     "cut_ANU-25-summer-1_20260102.mp4",
-    #     "cut_ANU-25-summer-1_20260103.mp4",
-    #     "cut_ANU-25-summer-1_20260104.mp4",
-    #     "cut_ANU-25-summer-1_20260105.mp4",
-    #     "cut_ANU-25-summer-1_20260107.mp4",
-    #     "cut_ANU-25-summer-1_20260108.mp4",
-    #     "cut_ANU-25-summer-1_20260109.mp4",
-    #     "cut_ANU-25-summer-1_20260110.mp4",
-    #     "cut_ANU-25-summer-1_20260111.mp4",
-    #     "cut_ANU-25-summer-1_20260112.mp4",
-    #     "cut_ANU-25-summer-1_20260113.mp4",
-    #     "cut_ANU-25-summer-20_20251219.mp4",
-    #     "cut_ANU-25-summer-20_20251220.mp4",
-    #     "cut_ANU-25-summer-20_20251221.mp4",
-    #     "cut_ANU-25-summer-20_20251225.mp4",
-    #     "cut_ANU-25-summer-20_20251226.mp4",
-    #     "cut_ANU-25-summer-20_20251227.mp4",
-    #     "cut_ANU-25-summer-20_20251228.mp4",
-    #     "cut_ANU-25-summer-20_20251229.mp4",
-    #     "cut_ANU-25-summer-20_20251230.mp4",
-    #     "cut_ANU-25-summer-20_20251231.mp4",
-    #     "cut_ANU-25-summer-20_20260101.mp4",
-    #     "cut_ANU-25-summer-20_20260102.mp4",
-    #     "cut_ANU-25-summer-20_20260103.mp4",
-    #     "cut_ANU-25-summer-20_20260104.mp4",
-    #     "cut_ANU-25-summer-20_20260105.mp4",
-    #     "cut_ANU-25-summer-20_20260107.mp4",
-    #     "cut_ANU-25-summer-20_20260108.mp4",
-    #     "cut_ANU-25-summer-20_20260109.mp4",
-    #     "cut_ANU-25-summer-20_20260111.mp4",
-    #     "cut_ANU-25-summer-20_20260112.mp4",
-    #     "cut_ANU-25-summer-20_20260113.mp4",
-    #     "cut_ANU-25-summer-2_20251219.mp4",
-    #     "cut_ANU-25-summer-2_20251220.mp4",
-    #     "cut_ANU-25-summer-2_20251221.mp4",
-    #     "cut_ANU-25-summer-2_20251225.mp4",
-    #     "cut_ANU-25-summer-2_20251228.mp4",
-    #     "cut_ANU-25-summer-2_20251229.mp4",
-    #     "cut_ANU-25-summer-2_20251230.mp4",
-    #     "cut_ANU-25-summer-2_20251231.mp4",
-    #     "cut_ANU-25-summer-2_20260101.mp4",
-    #     "cut_ANU-25-summer-2_20260102.mp4",
-    #     "cut_ANU-25-summer-2_20260103.mp4",
-    #     "cut_ANU-25-summer-2_20260104.mp4",
-    #     "cut_ANU-25-summer-2_20260105.mp4",
-    #     "cut_ANU-25-summer-2_20260107.mp4",
-    #     "cut_ANU-25-summer-2_20260108.mp4",
-    #     "cut_ANU-25-summer-2_20260109.mp4",
-    #     "cut_ANU-25-summer-2_20260110.mp4",
-    #     "cut_ANU-25-summer-2_20260111.mp4",
-    #     "cut_ANU-25-summer-2_20260112.mp4",
-    #     "cut_ANU-25-summer-2_20260113.mp4",
-    #     "cut_ANU-25-summer-3_20251219.mp4",
-    #     "cut_ANU-25-summer-3_20251220.mp4",
-    #     "cut_ANU-25-summer-3_20251221.mp4",
-    #     "cut_ANU-25-summer-3_20251225.mp4",
-    #     "cut_ANU-25-summer-3_20251226.mp4",
-    #     "cut_ANU-25-summer-3_20251227.mp4",
-    #     "cut_ANU-25-summer-3_20251228.mp4",
-    #     "cut_ANU-25-summer-3_20251229.mp4",
-    #     "cut_ANU-25-summer-3_20251230.mp4",
-    #     "cut_ANU-25-summer-3_20251231.mp4",
-    #     "cut_ANU-25-summer-3_20260101.mp4",
-    #     "cut_ANU-25-summer-3_20260102.mp4",
-    #     "cut_ANU-25-summer-3_20260103.mp4",
-    #     "cut_ANU-25-summer-3_20260104.mp4",
-    #     "cut_ANU-25-summer-3_20260105.mp4",
-    #     "cut_ANU-25-summer-3_20260107.mp4",
-    #     "cut_ANU-25-summer-3_20260108.mp4",
-    #     "cut_ANU-25-summer-3_20260109.mp4",
-    #     "cut_ANU-25-summer-3_20260110.mp4",
-    #     "cut_ANU-25-summer-3_20260111.mp4",
-    #     "cut_ANU-25-summer-3_20260112.mp4",
-    #     "cut_ANU-25-summer-3_20260113.mp4",
-    #     "cut_ANU-25-summer-4_20251219.mp4",
-    #     "cut_ANU-25-summer-4_20251220.mp4",
-    #     "cut_ANU-25-summer-4_20251221.mp4",
-    #     "cut_ANU-25-summer-4_20251225.mp4",
-    #     "cut_ANU-25-summer-4_20251226.mp4",
-    #     "cut_ANU-25-summer-4_20251227.mp4",
-    #     "cut_ANU-25-summer-4_20251228.mp4",
-    #     "cut_ANU-25-summer-4_20251229.mp4",
-    #     "cut_ANU-25-summer-4_20251230.mp4",
-    #     "cut_ANU-25-summer-4_20251231.mp4",
-    #     "cut_ANU-25-summer-4_20260101.mp4",
-    #     "cut_ANU-25-summer-4_20260102.mp4",
-    #     "cut_ANU-25-summer-4_20260103.mp4",
-    #     "cut_ANU-25-summer-4_20260104.mp4",
-    #     "cut_ANU-25-summer-4_20260105.mp4",
-    #     "cut_ANU-25-summer-4_20260107.mp4",
-    #     "cut_ANU-25-summer-4_20260108.mp4",
-    #     "cut_ANU-25-summer-4_20260109.mp4",
-    #     "cut_ANU-25-summer-4_20260110.mp4",
-    #     "cut_ANU-25-summer-4_20260111.mp4",
-    #     "cut_ANU-25-summer-4_20260112.mp4",
-    #     "cut_ANU-25-summer-4_20260113.mp4",
-    #     "cut_ANU-25-summer-6_20251219.mp4",
-    #     "cut_ANU-25-summer-6_20251220.mp4",
-    #     "cut_ANU-25-summer-6_20251221.mp4",
-    #     "cut_ANU-25-summer-6_20251225.mp4",
-    #     "cut_ANU-25-summer-6_20251226.mp4",
-    #     "cut_ANU-25-summer-6_20251227.mp4",
-    #     "cut_ANU-25-summer-6_20251228.mp4",
-    #     "cut_ANU-25-summer-6_20251229.mp4",
-    #     "cut_ANU-25-summer-6_20251230.mp4",
-    #     "cut_ANU-25-summer-6_20251231.mp4",
-    #     "cut_ANU-25-summer-6_20260101.mp4",
-    #     "cut_ANU-25-summer-6_20260102.mp4",
-    #     "cut_ANU-25-summer-6_20260103.mp4",
-    #     "cut_ANU-25-summer-6_20260104.mp4",
-    #     "cut_ANU-25-summer-6_20260105.mp4",
-    #     "cut_ANU-25-summer-6_20260107.mp4",
-    #     "cut_ANU-25-summer-6_20260108.mp4",
-    #     "cut_ANU-25-summer-6_20260109.mp4",
-    #     "cut_ANU-25-summer-6_20260110.mp4",
-    #     "cut_ANU-25-summer-6_20260111.mp4",
-    #     "cut_ANU-25-summer-6_20260112.mp4",
-    #     "cut_ANU-25-summer-6_20260113.mp4",
-    #     "cut_ANU-25-summer-7_20251219.mp4",
-    #     "cut_ANU-25-summer-7_20251220.mp4",
-    #     "cut_ANU-25-summer-7_20251221.mp4",
-    #     "cut_ANU-25-summer-7_20251225.mp4",
-    #     "cut_ANU-25-summer-7_20251227.mp4",
-    #     "cut_ANU-25-summer-7_20251228.mp4",
-    #     "cut_ANU-25-summer-7_20251229.mp4",
-    #     "cut_ANU-25-summer-7_20251230.mp4",
-    #     "cut_ANU-25-summer-7_20251231.mp4",
-    #     "cut_ANU-25-summer-7_20260101.mp4",
-    #     "cut_ANU-25-summer-7_20260102.mp4",
-    #     "cut_ANU-25-summer-7_20260103.mp4",
-    #     "cut_ANU-25-summer-7_20260104.mp4",
-    #     "cut_ANU-25-summer-7_20260105.mp4",
-    #     "cut_ANU-25-summer-7_20260107.mp4",
-    #     "cut_ANU-25-summer-7_20260108.mp4",
-    #     "cut_ANU-25-summer-7_20260109.mp4",
-    #     "cut_ANU-25-summer-7_20260110.mp4",
-    #     "cut_ANU-25-summer-7_20260111.mp4",
-    #     "cut_ANU-25-summer-7_20260112.mp4",
-    #     "cut_ANU-25-summer-7_20260113.mp4",
-    #     "cut_ANU-25-summer-8_20251219.mp4",
-    #     "cut_ANU-25-summer-8_20251220.mp4",
-    #     "cut_ANU-25-summer-8_20251221.mp4",
-    #     "cut_ANU-25-summer-8_20251225.mp4",
-    #     "cut_ANU-25-summer-8_20251226.mp4",
-    #     "cut_ANU-25-summer-8_20251227.mp4",
-    #     "cut_ANU-25-summer-8_20251228.mp4",
-    #     "cut_ANU-25-summer-8_20251229.mp4",
-    #     "cut_ANU-25-summer-8_20251230.mp4",
-    #     "cut_ANU-25-summer-8_20251231.mp4",
-    #     "cut_ANU-25-summer-8_20260101.mp4",
-    #     "cut_ANU-25-summer-8_20260102.mp4",
-    #     "cut_ANU-25-summer-8_20260103.mp4",
-    #     "cut_ANU-25-summer-8_20260104.mp4",
-    #     "cut_ANU-25-summer-8_20260105.mp4",
-    #     "cut_ANU-25-summer-8_20260107.mp4",
-    #     "cut_ANU-25-summer-8_20260108.mp4",
-    #     "cut_ANU-25-summer-8_20260109.mp4",
-    #     "cut_ANU-25-summer-8_20260110.mp4",
-    #     "cut_ANU-25-summer-8_20260111.mp4",
-    #     "cut_ANU-25-summer-8_20260112.mp4",
-    #     "cut_ANU-25-summer-8_20260113.mp4",
-    #     "cut_ANU-25-summer-9_20251219.mp4",
-    #     "cut_ANU-25-summer-9_20251220.mp4",
-    #     "cut_ANU-25-summer-9_20251221.mp4",
-    #     "cut_ANU-25-summer-9_20251225.mp4",
-    #     "cut_ANU-25-summer-9_20251226.mp4",
-    #     "cut_ANU-25-summer-9_20251227.mp4",
-    #     "cut_ANU-25-summer-9_20251228.mp4",
-    #     "cut_ANU-25-summer-9_20251229.mp4",
-    #     "cut_ANU-25-summer-9_20251230.mp4",
-    #     "cut_ANU-25-summer-9_20251231.mp4",
-    #     "cut_ANU-25-summer-9_20260101.mp4",
-    #     "cut_ANU-25-summer-9_20260102.mp4",
-    #     "cut_ANU-25-summer-9_20260103.mp4",
-    #     "cut_ANU-25-summer-9_20260104.mp4",
-    #     "cut_ANU-25-summer-9_20260105.mp4",
-    #     "cut_ANU-25-summer-9_20260107.mp4",
-    #     "cut_ANU-25-summer-9_20260108.mp4",
-    #     "cut_ANU-25-summer-9_20260109.mp4",
-    #     "cut_ANU-25-summer-9_20260110.mp4",
-    #     "cut_ANU-25-summer-9_20260111.mp4",
-    #     "cut_ANU-25-summer-9_20260112.mp4",
-    #     "cut_ANU-25-summer-9_20260113.mp4",
-    # ]
-    # random.shuffle(video_list)
-    # print(video_list)
-    # return
-    # video_list = [
-    #     # "cut_ANU-25-summer-19_20251219.mp4",
-    #     # "cut_ANU-25-summer-13_20260104.mp4",
-    #     # "cut_ANU-25-summer-3_20260104.mp4",
-    #     # "cut_ANU-25-summer-20_20251228.mp4",
-    #     # "cut_ANU-25-summer-20_20251225.mp4",
-    #     # "cut_ANU-25-summer-9_20251226.mp4",
-    #     # "cut_ANU-25-summer-18_20260109.mp4",
-    #     # "cut_ANU-25-summer-18_20251228.mp4",
-    #     # "cut_ANU-25-summer-16_20251221.mp4",
-    #     # "cut_ANU-25-summer-10_20260110.mp4",
-    #     # "cut_ANU-25-summer-15_20251229.mp4",
-    #     # "cut_ANU-25-summer-9_20260108.mp4",
-    #     # "cut_ANU-25-summer-6_20260101.mp4",
-    #     # "cut_ANU-25-summer-13_20251226.mp4",
-    #     # "cut_ANU-25-summer-19_20260111.mp4",
-    #     # "cut_ANU-25-summer-17_20251231.mp4",
-    #     # "cut_ANU-25-summer-3_20260108.mp4",
-    #     # "cut_ANU-25-summer-19_20260107.mp4",
-    #     # "cut_ANU-25-summer-4_20251229.mp4",
-    #     # "cut_ANU-25-summer-9_20260104.mp4",
-    #     # "cut_ANU-25-summer-9_20251225.mp4",
-    #     # "cut_ANU-25-summer-9_20251221.mp4",
-    #     # "cut_ANU-25-summer-14_20260104.mp4",
-    #     # "cut_ANU-25-summer-8_20260112.mp4",
-    #     # "cut_ANU-25-summer-13_20251229.mp4",
-    #     # "cut_ANU-25-summer-11_20251231.mp4",
-    #     # "cut_ANU-25-summer-16_20251228.mp4",
-    #     # "cut_ANU-25-summer-6_20260105.mp4",
-    #     # "cut_ANU-25-summer-4_20260111.mp4",
-    #     # "cut_ANU-25-summer-19_20260109.mp4",
-    #     # "cut_ANU-25-summer-16_20260105.mp4",
-    #     # "cut_ANU-25-summer-16_20260108.mp4",
-    #     # "cut_ANU-25-summer-15_20251219.mp4",
-    #     # "cut_ANU-25-summer-4_20260105.mp4",
-    #     # "cut_ANU-25-summer-16_20251229.mp4",
-    #     # "cut_ANU-25-summer-14_20260103.mp4",
-    #     # "cut_ANU-25-summer-2_20260111.mp4",
-    #     # "cut_ANU-25-summer-19_20260105.mp4",
-    #     # "cut_ANU-25-summer-11_20251225.mp4",
-    #     # "cut_ANU-25-summer-16_20260107.mp4",
-    #     # "cut_ANU-25-summer-8_20260105.mp4",
-    #     # "cut_ANU-25-summer-4_20260102.mp4",
-    #     # "cut_ANU-25-summer-17_20260112.mp4",
-    #     # "cut_ANU-25-summer-15_20260110.mp4",
-    #     # "cut_ANU-25-summer-7_20251220.mp4",
-    #     # "cut_ANU-25-summer-3_20251231.mp4",
-    #     # "cut_ANU-25-summer-18_20251229.mp4",
-    #     # "cut_ANU-25-summer-20_20251227.mp4",
-    #     # "cut_ANU-25-summer-8_20251219.mp4",
-    #     # "cut_ANU-25-summer-19_20251220.mp4",
-    #     # "cut_ANU-25-summer-13_20260107.mp4",
-    #     # "cut_ANU-25-summer-15_20260105.mp4",
-    #     # "cut_ANU-25-summer-6_20260103.mp4",
-    #     # "cut_ANU-25-summer-6_20251221.mp4",
-    #     # "cut_ANU-25-summer-19_20260112.mp4",
-    #     # "cut_ANU-25-summer-17_20251229.mp4",
-    #     # "cut_ANU-25-summer-6_20260108.mp4",
-    #     # "cut_ANU-25-summer-9_20260107.mp4",
-    #     # "cut_ANU-25-summer-4_20251221.mp4",
-    #     # "cut_ANU-25-summer-18_20260107.mp4",
-    #     # "cut_ANU-25-summer-11_20251228.mp4",
-    #     # "cut_ANU-25-summer-1_20251230.mp4",
-    #     # "cut_ANU-25-summer-6_20251228.mp4",
-    #     # "cut_ANU-25-summer-3_20251227.mp4",
-    #     # "cut_ANU-25-summer-8_20260111.mp4",
-    #     # "cut_ANU-25-summer-16_20260104.mp4",
-    #     # "cut_ANU-25-summer-20_20260109.mp4",
-    #     # "cut_ANU-25-summer-11_20251227.mp4",
-    #     # "cut_ANU-25-summer-6_20260112.mp4",
-    #     # "cut_ANU-25-summer-6_20260113.mp4",
-    #     # "cut_ANU-25-summer-13_20251227.mp4",
-    #     # "cut_ANU-25-summer-16_20260101.mp4",
-    #     # "cut_ANU-25-summer-15_20251226.mp4",
-    #     # "cut_ANU-25-summer-14_20260112.mp4",
-    #     # "cut_ANU-25-summer-7_20260112.mp4",
-    #     # "cut_ANU-25-summer-19_20251227.mp4",
-    #     # "cut_ANU-25-summer-1_20260110.mp4",
-    #     # "cut_ANU-25-summer-6_20260111.mp4",
-    #     # "cut_ANU-25-summer-14_20251226.mp4",
-    #     # "cut_ANU-25-summer-13_20251219.mp4",
-    #     # "cut_ANU-25-summer-18_20260103.mp4",
-    #     # "cut_ANU-25-summer-18_20260105.mp4",
-    #     # "cut_ANU-25-summer-17_20251227.mp4",
-    #     # "cut_ANU-25-summer-16_20260112.mp4",
-    #     # "cut_ANU-25-summer-18_20251219.mp4",
-    #     # "cut_ANU-25-summer-11_20260104.mp4",
-    #     # "cut_ANU-25-summer-11_20251219.mp4",
-    #     # "cut_ANU-25-summer-8_20251227.mp4",
-    #     # "cut_ANU-25-summer-14_20260107.mp4",
-    #     # "cut_ANU-25-summer-20_20260103.mp4",
-    #     # "cut_ANU-25-summer-7_20260104.mp4",
-    #     # "cut_ANU-25-summer-8_20260109.mp4",
-    #     # "cut_ANU-25-summer-16_20251220.mp4",
-    #     # "cut_ANU-25-summer-18_20260111.mp4",
-    #     # "cut_ANU-25-summer-14_20251225.mp4",
-    #     # "cut_ANU-25-summer-2_20260101.mp4",
-    #     # "cut_ANU-25-summer-3_20260111.mp4",
-    #     # "cut_ANU-25-summer-18_20251231.mp4",
-    #     # "cut_ANU-25-summer-20_20260104.mp4",
-    #     # "cut_ANU-25-summer-17_20260101.mp4",
-    #     # "cut_ANU-25-summer-15_20251220.mp4",
-    #     # "cut_ANU-25-summer-6_20251229.mp4",
-    #     # "cut_ANU-25-summer-18_20251226.mp4",
-    #     # "cut_ANU-25-summer-16_20260109.mp4",
-    #     # "cut_ANU-25-summer-20_20251219.mp4",
-    #     # "cut_ANU-25-summer-2_20251230.mp4",
-    #     # "cut_ANU-25-summer-13_20260110.mp4",
-    #     # "cut_ANU-25-summer-3_20260102.mp4",
-    #     # "cut_ANU-25-summer-4_20260101.mp4",
-    #     # "cut_ANU-25-summer-11_20251221.mp4",
-    #     # "cut_ANU-25-summer-19_20251225.mp4",
-    #     # "cut_ANU-25-summer-17_20260102.mp4",
-    #     # "cut_ANU-25-summer-20_20260111.mp4",
-    #     # "cut_ANU-25-summer-3_20260113.mp4",
-    #     # "cut_ANU-25-summer-17_20260104.mp4",
-    #     # "cut_ANU-25-summer-11_20251229.mp4",
-    #     # "cut_ANU-25-summer-14_20251231.mp4",
-    #     # "cut_ANU-25-summer-19_20260104.mp4",
-    #     # "cut_ANU-25-summer-7_20251230.mp4",
-    #     # "cut_ANU-25-summer-4_20251230.mp4",
-    #     # "cut_ANU-25-summer-19_20251230.mp4",
-    #     # "cut_ANU-25-summer-17_20251225.mp4",
-    #     # "cut_ANU-25-summer-17_20251219.mp4",
-    #     # "cut_ANU-25-summer-13_20260111.mp4",
-    #     # "cut_ANU-25-summer-2_20260104.mp4",
-    #     # "cut_ANU-25-summer-15_20260102.mp4",
-    #     # "cut_ANU-25-summer-8_20251228.mp4",
-    #     # "cut_ANU-25-summer-2_20260102.mp4",
-    #     # "cut_ANU-25-summer-7_20260108.mp4",
-    #     # "cut_ANU-25-summer-7_20260102.mp4",
-    #     # "cut_ANU-25-summer-3_20260107.mp4",
-    #     # "cut_ANU-25-summer-9_20251228.mp4",
-    #     # "cut_ANU-25-summer-11_20251226.mp4",
-    #     # "cut_ANU-25-summer-2_20251229.mp4",
-    #     # "cut_ANU-25-summer-4_20251227.mp4",
-    #     # "cut_ANU-25-summer-3_20260103.mp4",
-    #     # "cut_ANU-25-summer-8_20260107.mp4",
-    #     # "cut_ANU-25-summer-19_20251228.mp4",
-    #     # "cut_ANU-25-summer-8_20260103.mp4",
-    #     # "cut_ANU-25-summer-14_20251229.mp4",
-    #     # "cut_ANU-25-summer-16_20260111.mp4",
-    #     # "cut_ANU-25-summer-8_20251230.mp4",
-    #     # "cut_ANU-25-summer-3_20251228.mp4",
-    #     # "cut_ANU-25-summer-6_20251219.mp4",
-    #     # "cut_ANU-25-summer-2_20251220.mp4",
-    #     # "cut_ANU-25-summer-3_20251226.mp4",
-    #     # "cut_ANU-25-summer-20_20251230.mp4",
-    #     # "cut_ANU-25-summer-15_20251228.mp4",
-    #     # "cut_ANU-25-summer-2_20251225.mp4",
-    #     # "cut_ANU-25-summer-8_20251229.mp4",
-    #     # "cut_ANU-25-summer-1_20260109.mp4",
-    #     # "cut_ANU-25-summer-6_20251230.mp4",
-    #     # "cut_ANU-25-summer-2_20260108.mp4",
-    #     # "cut_ANU-25-summer-18_20260102.mp4",
-    #     "cut_ANU-25-summer-8_20251221.mp4",
-    #     "cut_ANU-25-summer-1_20260112.mp4",
-    #     "cut_ANU-25-summer-18_20260104.mp4",
-    #     "cut_ANU-25-summer-4_20251225.mp4",
-    #     "cut_ANU-25-summer-13_20260105.mp4",
-    #     "cut_ANU-25-summer-17_20260110.mp4",
-    #     "cut_ANU-25-summer-20_20251221.mp4",
-    #     "cut_ANU-25-summer-18_20251227.mp4",
-    #     "cut_ANU-25-summer-2_20260105.mp4",
-    #     "cut_ANU-25-summer-17_20260103.mp4",
-    #     "cut_ANU-25-summer-9_20260105.mp4",
-    #     "cut_ANU-25-summer-3_20260110.mp4",
-    #     "cut_ANU-25-summer-13_20260108.mp4",
-    #     "cut_ANU-25-summer-17_20251228.mp4",
-    #     "cut_ANU-25-summer-13_20260109.mp4",
-    #     "cut_ANU-25-summer-19_20251226.mp4",
-    #     "cut_ANU-25-summer-10_20260107.mp4",
-    #     "cut_ANU-25-summer-13_20251228.mp4",
-    #     "cut_ANU-25-summer-7_20251221.mp4",
-    #     "cut_ANU-25-summer-10_20260108.mp4",
-    #     "cut_ANU-25-summer-7_20251228.mp4",
-    #     "cut_ANU-25-summer-15_20260104.mp4",
-    #     "cut_ANU-25-summer-1_20251227.mp4",
-    #     "cut_ANU-25-summer-8_20260104.mp4",
-    #     "cut_ANU-25-summer-7_20251219.mp4",
-    #     "cut_ANU-25-summer-11_20251220.mp4",
-    #     "cut_ANU-25-summer-2_20251221.mp4",
-    #     "cut_ANU-25-summer-6_20251227.mp4",
-    #     "cut_ANU-25-summer-4_20260103.mp4",
-    #     "cut_ANU-25-summer-7_20260109.mp4",
-    #     "cut_ANU-25-summer-19_20260101.mp4",
-    #     "cut_ANU-25-summer-1_20251231.mp4",
-    #     "cut_ANU-25-summer-7_20260101.mp4",
-    #     "cut_ANU-25-summer-3_20251221.mp4",
-    #     "cut_ANU-25-summer-18_20260101.mp4",
-    #     "cut_ANU-25-summer-11_20260105.mp4",
-    #     "cut_ANU-25-summer-15_20251225.mp4",
-    #     "cut_ANU-25-summer-4_20260107.mp4",
-    #     "cut_ANU-25-summer-17_20251230.mp4",
-    #     "cut_ANU-25-summer-8_20251226.mp4",
-    #     "cut_ANU-25-summer-13_20260102.mp4",
-    #     "cut_ANU-25-summer-19_20251231.mp4",
-    #     "cut_ANU-25-summer-17_20260107.mp4",
-    #     "cut_ANU-25-summer-4_20260112.mp4",
-    #     "cut_ANU-25-summer-17_20251220.mp4",
-    #     "cut_ANU-25-summer-3_20251219.mp4",
-    #     "cut_ANU-25-summer-9_20260109.mp4",
-    #     "cut_ANU-25-summer-14_20251220.mp4",
-    #     "cut_ANU-25-summer-19_20260108.mp4",
-    #     "cut_ANU-25-summer-2_20260107.mp4",
-    #     "cut_ANU-25-summer-20_20260112.mp4",
-    #     "cut_ANU-25-summer-4_20260113.mp4",
-    #     "cut_ANU-25-summer-7_20260113.mp4",
-    #     "cut_ANU-25-summer-14_20251219.mp4",
-    #     "cut_ANU-25-summer-17_20260108.mp4",
-    #     "cut_ANU-25-summer-4_20260110.mp4",
-    #     "cut_ANU-25-summer-3_20260109.mp4",
-    #     "cut_ANU-25-summer-9_20260101.mp4",
-    #     "cut_ANU-25-summer-7_20260107.mp4",
-    #     "cut_ANU-25-summer-20_20260105.mp4",
-    #     "cut_ANU-25-summer-18_20251225.mp4",
-    #     "cut_ANU-25-summer-10_20260109.mp4",
-    #     "cut_ANU-25-summer-7_20251231.mp4",
-    #     "cut_ANU-25-summer-9_20251231.mp4",
-    #     "cut_ANU-25-summer-18_20260113.mp4",
-    #     "cut_ANU-25-summer-1_20251228.mp4",
-    #     "cut_ANU-25-summer-13_20251230.mp4",
-    #     "cut_ANU-25-summer-1_20251226.mp4",
-    #     "cut_ANU-25-summer-15_20260108.mp4",
-    #     "cut_ANU-25-summer-15_20260109.mp4",
-    #     "cut_ANU-25-summer-14_20260109.mp4",
-    #     "cut_ANU-25-summer-20_20251229.mp4",
-    #     "cut_ANU-25-summer-9_20260103.mp4",
-    #     "cut_ANU-25-summer-20_20260113.mp4",
-    #     "cut_ANU-25-summer-13_20251231.mp4",
-    #     "cut_ANU-25-summer-4_20251226.mp4",
-    #     "cut_ANU-25-summer-14_20260101.mp4",
-    #     "cut_ANU-25-summer-10_20260105.mp4",
-    #     "cut_ANU-25-summer-9_20251229.mp4",
-    #     "cut_ANU-25-summer-1_20251220.mp4",
-    #     "cut_ANU-25-summer-14_20260111.mp4",
-    #     "cut_ANU-25-summer-18_20251221.mp4",
-    #     "cut_ANU-25-summer-4_20251228.mp4",
-    #     "cut_ANU-25-summer-6_20260110.mp4",
-    #     "cut_ANU-25-summer-8_20260101.mp4",
-    #     "cut_ANU-25-summer-9_20260110.mp4",
-    #     "cut_ANU-25-summer-15_20260103.mp4",
-    #     "cut_ANU-25-summer-16_20251230.mp4",
-    #     "cut_ANU-25-summer-1_20260104.mp4",
-    #     "cut_ANU-25-summer-14_20260113.mp4",
-    #     "cut_ANU-25-summer-10_20260113.mp4",
-    #     "cut_ANU-25-summer-1_20260108.mp4",
-    #     "cut_ANU-25-summer-20_20251220.mp4",
-    #     "cut_ANU-25-summer-14_20260108.mp4",
-    #     "cut_ANU-25-summer-3_20260101.mp4",
-    #     "cut_ANU-25-summer-17_20251226.mp4",
-    #     "cut_ANU-25-summer-8_20260102.mp4",
-    #     "cut_ANU-25-summer-14_20251221.mp4",
-    #     "cut_ANU-25-summer-1_20251229.mp4",
-    #     "cut_ANU-25-summer-14_20260102.mp4",
-    #     "cut_ANU-25-summer-17_20260111.mp4",
-    #     "cut_ANU-25-summer-1_20260107.mp4",
-    #     "cut_ANU-25-summer-2_20251219.mp4",
-    #     "cut_ANU-25-summer-13_20260101.mp4",
-    #     "cut_ANU-25-summer-18_20251230.mp4",
-    #     "cut_ANU-25-summer-1_20251221.mp4",
-    #     "cut_ANU-25-summer-15_20260113.mp4",
-    #     "cut_ANU-25-summer-2_20260109.mp4",
-    #     "cut_ANU-25-summer-4_20260104.mp4",
-    #     "cut_ANU-25-summer-7_20251225.mp4",
-    #     "cut_ANU-25-summer-6_20251226.mp4",
-    #     "cut_ANU-25-summer-6_20251231.mp4",
-    #     "cut_ANU-25-summer-1_20260103.mp4",
-    #     "cut_ANU-25-summer-3_20251225.mp4",
-    #     "cut_ANU-25-summer-7_20251229.mp4",
-    #     "cut_ANU-25-summer-13_20260112.mp4",
-    #     "cut_ANU-25-summer-19_20251229.mp4",
-    #     "cut_ANU-25-summer-8_20251231.mp4",
-    #     "cut_ANU-25-summer-15_20260101.mp4",
-    #     "cut_ANU-25-summer-15_20260111.mp4",
-    #     "cut_ANU-25-summer-14_20251228.mp4",
-    #     "cut_ANU-25-summer-19_20251221.mp4",
-    #     "cut_ANU-25-summer-6_20251220.mp4",
-    #     "cut_ANU-25-summer-11_20260103.mp4",
-    #     "cut_ANU-25-summer-2_20251231.mp4",
-    #     "cut_ANU-25-summer-20_20260102.mp4",
-    #     "cut_ANU-25-summer-13_20251220.mp4",
-    #     "cut_ANU-25-summer-15_20251230.mp4",
-    #     "cut_ANU-25-summer-19_20260110.mp4",
-    #     "cut_ANU-25-summer-3_20260105.mp4",
-    #     "cut_ANU-25-summer-16_20260110.mp4",
-    #     "cut_ANU-25-summer-18_20260112.mp4",
-    #     "cut_ANU-25-summer-1_20260105.mp4",
-    #     "cut_ANU-25-summer-6_20260107.mp4",
-    #     "cut_ANU-25-summer-3_20251230.mp4",
-    #     "cut_ANU-25-summer-20_20251226.mp4",
-    #     "cut_ANU-25-summer-16_20251227.mp4",
-    #     "cut_ANU-25-summer-19_20260103.mp4",
-    #     "cut_ANU-25-summer-19_20260102.mp4",
-    #     "cut_ANU-25-summer-8_20251225.mp4",
-    #     "cut_ANU-25-summer-18_20260110.mp4",
-    #     "cut_ANU-25-summer-8_20260110.mp4",
-    #     "cut_ANU-25-summer-16_20251231.mp4",
-    #     "cut_ANU-25-summer-1_20260113.mp4",
-    #     "cut_ANU-25-summer-16_20251219.mp4",
-    #     "cut_ANU-25-summer-16_20260113.mp4",
-    #     "cut_ANU-25-summer-9_20260112.mp4",
-    #     "cut_ANU-25-summer-20_20260108.mp4",
-    #     "cut_ANU-25-summer-16_20260103.mp4",
-    #     "cut_ANU-25-summer-15_20251221.mp4",
-    #     "cut_ANU-25-summer-2_20260112.mp4",
-    #     "cut_ANU-25-summer-8_20251220.mp4",
-    #     "cut_ANU-25-summer-18_20260108.mp4",
-    #     "cut_ANU-25-summer-9_20260102.mp4",
-    #     "cut_ANU-25-summer-15_20260107.mp4",
-    #     "cut_ANU-25-summer-20_20251231.mp4",
-    #     "cut_ANU-25-summer-15_20260112.mp4",
-    #     "cut_ANU-25-summer-8_20260113.mp4",
-    #     "cut_ANU-25-summer-1_20260111.mp4",
-    #     "cut_ANU-25-summer-20_20260101.mp4",
-    #     "cut_ANU-25-summer-17_20260109.mp4",
-    #     "cut_ANU-25-summer-17_20260113.mp4",
-    #     "cut_ANU-25-summer-15_20251231.mp4",
-    #     "cut_ANU-25-summer-7_20260111.mp4",
-    #     "cut_ANU-25-summer-10_20260111.mp4",
-    #     "cut_ANU-25-summer-4_20260108.mp4",
-    #     "cut_ANU-25-summer-6_20260104.mp4",
-    #     "cut_ANU-25-summer-14_20260105.mp4",
-    #     "cut_ANU-25-summer-13_20260113.mp4",
-    #     "cut_ANU-25-summer-11_20260102.mp4",
-    #     "cut_ANU-25-summer-16_20251226.mp4",
-    #     "cut_ANU-25-summer-6_20260102.mp4",
-    #     "cut_ANU-25-summer-9_20260113.mp4",
-    #     "cut_ANU-25-summer-9_20251219.mp4",
-    #     "cut_ANU-25-summer-9_20251230.mp4",
-    #     "cut_ANU-25-summer-6_20251225.mp4",
-    #     "cut_ANU-25-summer-14_20251230.mp4",
-    #     "cut_ANU-25-summer-17_20251221.mp4",
-    #     "cut_ANU-25-summer-13_20251225.mp4",
-    #     "cut_ANU-25-summer-7_20260105.mp4",
-    #     "cut_ANU-25-summer-2_20251228.mp4",
-    #     "cut_ANU-25-summer-4_20251219.mp4",
-    #     "cut_ANU-25-summer-16_20251225.mp4",
-    #     "cut_ANU-25-summer-3_20251229.mp4",
-    #     "cut_ANU-25-summer-3_20251220.mp4",
-    #     "cut_ANU-25-summer-1_20251225.mp4",
-    #     "cut_ANU-25-summer-7_20251227.mp4",
-    #     "cut_ANU-25-summer-9_20251227.mp4",
-    #     "cut_ANU-25-summer-4_20251231.mp4",
-    #     "cut_ANU-25-summer-11_20251230.mp4",
-    #     "cut_ANU-25-summer-6_20260109.mp4",
-    #     "cut_ANU-25-summer-14_20260110.mp4",
-    #     "cut_ANU-25-summer-16_20260102.mp4",
-    #     "cut_ANU-25-summer-17_20260105.mp4",
-    #     "cut_ANU-25-summer-7_20260110.mp4",
-    #     "cut_ANU-25-summer-11_20260101.mp4",
-    #     "cut_ANU-25-summer-8_20260108.mp4",
-    #     "cut_ANU-25-summer-13_20251221.mp4",
-    #     "cut_ANU-25-summer-9_20260111.mp4",
-    #     "cut_ANU-25-summer-18_20251220.mp4",
-    #     "cut_ANU-25-summer-2_20260110.mp4",
-    #     "cut_ANU-25-summer-20_20260107.mp4",
-    #     "cut_ANU-25-summer-10_20260112.mp4",
-    #     "cut_ANU-25-summer-15_20251227.mp4",
-    #     "cut_ANU-25-summer-7_20260103.mp4",
-    #     "cut_ANU-25-summer-4_20251220.mp4",
-    #     "cut_ANU-25-summer-1_20260101.mp4",
-    #     "cut_ANU-25-summer-9_20251220.mp4",
-    #     "cut_ANU-25-summer-2_20260103.mp4",
-    #     "cut_ANU-25-summer-14_20251227.mp4",
-    #     "cut_ANU-25-summer-13_20260103.mp4",
-    #     "cut_ANU-25-summer-2_20260113.mp4",
-    #     "cut_ANU-25-summer-4_20260109.mp4",
-    #     "cut_ANU-25-summer-3_20260112.mp4",
-    #     "cut_ANU-25-summer-1_20260102.mp4",
-    #     "cut_ANU-25-summer-1_20251219.mp4",
-    #     "cut_ANU-25-summer-19_20260113.mp4",
-    # ]"""
+YOLO_MODEL_PATH = (
+    "/home/siu/projects/yolo_bee_detect/models/train_20251231/weights/best.pt"
+)
+OUTPUT_DIR = "/home/siu/projects/yolo_bee_detect/tmp/report_dir"
 
-    video_list = [
-        "cut_ANU-25-summer-17_20260111.mp4",
-        "cut_ANU-25-summer-15_20260113.mp4",
-        "cut_ANU-25-summer-2_20260109.mp4",
-        "cut_ANU-25-summer-4_20260104.mp4",
-        "cut_ANU-25-summer-15_20260101.mp4",
-        "cut_ANU-25-summer-15_20260111.mp4",
-        "cut_ANU-25-summer-20_20260102.mp4",
-        "cut_ANU-25-summer-19_20260110.mp4",
-        "cut_ANU-25-summer-3_20260105.mp4",
-        "cut_ANU-25-summer-16_20260110.mp4",
-        "cut_ANU-25-summer-18_20260112.mp4",
-        "cut_ANU-25-summer-19_20260103.mp4",
-        "cut_ANU-25-summer-19_20260102.mp4",
-        "cut_ANU-25-summer-18_20260110.mp4",
-        "cut_ANU-25-summer-16_20260113.mp4",
-        "cut_ANU-25-summer-20_20260108.mp4",
-        "cut_ANU-25-summer-16_20260103.mp4",
-        "cut_ANU-25-summer-2_20260112.mp4",
-        "cut_ANU-25-summer-18_20260108.mp4",
-        "cut_ANU-25-summer-15_20260107.mp4",
-        "cut_ANU-25-summer-15_20260112.mp4",
-        "cut_ANU-25-summer-20_20260101.mp4",
-        "cut_ANU-25-summer-17_20260109.mp4",
-        "cut_ANU-25-summer-17_20260113.mp4",
-        "cut_ANU-25-summer-4_20260108.mp4",
-        "cut_ANU-25-summer-14_20260105.mp4",
-        "cut_ANU-25-summer-14_20260110.mp4",
-        "cut_ANU-25-summer-16_20260102.mp4",
-        "cut_ANU-25-summer-17_20260105.mp4",
-        "cut_ANU-25-summer-2_20260110.mp4",
-        "cut_ANU-25-summer-20_20260107.mp4",
-        "cut_ANU-25-summer-2_20260103.mp4",
-        "cut_ANU-25-summer-2_20260113.mp4",
-        "cut_ANU-25-summer-4_20260109.mp4",
-    ]
 
-    YOLO_MODEL_PATH = (
-        "/home/siu/projects/yolo_bee_detect/models/train_20251231/weights/best.pt"
+@dataclass
+class Job:
+    slot: int
+    video: str
+    p: subprocess.Popen
+    last: str = ""
+    buf: str = ""
+    rc: Optional[int] = None
+
+
+def spawn_job(slot: int, video_dir: str, video: str) -> Job:
+    env = dict(os.environ)
+    env["VIDEO_PATH"] = os.path.join(video_dir, video)
+    env["YOLO_MODEL_PATH"] = YOLO_MODEL_PATH
+    env["OUTPUT_DIR"] = OUTPUT_DIR
+
+    # stdout/stderr를 부모가 수집해서 화면을 재구성 → 섞임 방지
+    p = subprocess.Popen(
+        ["uv", "run", "./src/video_log_per_frame.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+        text=False,
+        bufsize=0,
     )
-    OUTPUT_DIR = "/home/siu/projects/yolo_bee_detect/tmp/report_dir"
+    return Job(slot=slot, video=video, p=p, last="", buf="")
 
-    print(f"Found {len(video_list)} videos in {video_dir}")
 
-    # filtered_video_list = [
-    #     f
-    #     for f in video_list
-    #     if any(
-    #         f"ANU-25-summer-{i}_" in f for i in [2, 3, 4, 14, 15, 16, 17, 18, 19, 20]
-    #     )
-    #     and f.split("_")[2] >= "20260101.mp4"
-    # ]
-    # print("Filtered video count:", len(filtered_video_list))
-    # print("Filtered video list:")
-    # print(filtered_video_list)
+def render(jobs: List[Optional[Job]]):
+    sys.stdout.write("\033[2J\033[H")  # clear + home
+    running = sum(1 for j in jobs if j and j.p.poll() is None)
+    total = sum(1 for j in jobs if j)
+    sys.stdout.write(f"running {running}/{MAX_WORKERS} (active slots {total})\n")
+    sys.stdout.write("=" * 100 + "\n")
 
-    os.environ["YOLO_MODEL_PATH"] = YOLO_MODEL_PATH
-    os.environ["OUTPUT_DIR"] = OUTPUT_DIR
+    for i, j in enumerate(jobs):
+        if j is None:
+            sys.stdout.write(f"[{i:02d}] (idle)\n")
+            continue
+        rc = j.p.poll()
+        if rc is None:
+            st = "RUN"
+        else:
+            st = "OK" if rc == 0 else f"FAIL({rc})"
+        line = (j.last or "").strip()
+        sys.stdout.write(f"[{i:02d}] {st:10s} {j.video} | {line}\n")
 
-    for video_filename_idx in range(0, len(video_list)):
+    sys.stdout.flush()
 
-        print("----------------------------------------")
-        print(
-            f"Processing video {video_filename_idx+1}/{len(video_list)}: {video_list[video_filename_idx]}"
-        )
-        video_filename1 = video_list[video_filename_idx]
-        VIDEO_PATH1 = os.path.join(video_dir, video_filename1)
-        os.environ["VIDEO_PATH"] = VIDEO_PATH1
-        process1 = subprocess.Popen(["uv", "run", "./src/video_log_per_frame.py"])
 
-        process1.wait()
+def main(video_dir: str, video_list: List[str]) -> int:
+    queue: Deque[str] = deque(video_list)
+    sel = selectors.DefaultSelector()
 
-        # break
+    # 고정 슬롯(0..MAX_WORKERS-1). 각 슬롯에 Job 또는 None
+    slots: List[Optional[Job]] = [None] * MAX_WORKERS
 
-    return
+    def start_in_slot(slot: int):
+        nonlocal slots
+        if not queue:
+            return
+        video = queue.popleft()
+        job = spawn_job(slot, video_dir, video)
+        slots[slot] = job
+        # selectors는 fileobj 등록 (PIPE)
+        assert job.p.stdout is not None
+        sel.register(job.p.stdout, selectors.EVENT_READ, data=job)
+
+    # 초기 채우기
+    for s in range(MAX_WORKERS):
+        if not queue:
+            break
+        start_in_slot(s)
+
+    last_render = 0.0
+
+    while True:
+        # 종료 조건: 큐도 비었고, 실행 중인 슬롯도 없음
+        any_running = any(j is not None and j.p.poll() is None for j in slots)
+        if (not queue) and (not any_running):
+            break
+
+        # 출력 수집
+        for key, _ in sel.select(timeout=0.05):
+            job: Job = key.data
+            f = key.fileobj
+
+            chunk = f.read1(4096) if hasattr(f, "read1") else f.read(4096)
+            if not chunk:
+                # EOF: 등록 해제 (이미 프로세스가 끝났거나 파이프 닫힘)
+                try:
+                    sel.unregister(f)
+                except Exception:
+                    pass
+                continue
+
+            text = chunk.decode(errors="replace")
+
+            # \r / \n 처리: 최신 1줄만 유지
+            for ch in text:
+                if ch == "\r":
+                    job.last = job.buf
+                    job.buf = ""
+                elif ch == "\n":
+                    if job.buf:
+                        job.last = job.buf
+                        job.buf = ""
+                else:
+                    job.buf += ch
+            if job.buf:
+                job.last = job.buf
+
+        # 종료된 작업 슬롯 회수 + 다음 작업 투입
+        for s, job in enumerate(slots):
+            if job is None:
+                continue
+            rc = job.p.poll()
+            if rc is None:
+                continue
+
+            # 종료 처리
+            job.rc = rc
+            # 파이프 등록 해제/닫기
+            try:
+                if job.p.stdout:
+                    try:
+                        sel.unregister(job.p.stdout)
+                    except Exception:
+                        pass
+                    job.p.stdout.close()
+            except Exception:
+                pass
+
+            # 이 슬롯 비우고 다음 작업 시작
+            slots[s] = None
+            start_in_slot(s)
+
+        # 화면 갱신
+        now = time.time()
+        if now - last_render >= REFRESH_SEC:
+            render(slots)
+            last_render = now
+
+    # 마지막 렌더
+    render(slots)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    video_dir = "/mnt/videos"
+    video_list = [
+        "cut_ANU-25-summer-14_20260106.mp4",
+        "cut_ANU-25-summer-15_20260106.mp4",
+        "cut_ANU-25-summer-16_20260106.mp4",
+        "cut_ANU-25-summer-17_20260106.mp4",
+        "cut_ANU-25-summer-18_20260106.mp4",
+        "cut_ANU-25-summer-19_20260101.mp4",
+        "cut_ANU-25-summer-19_20260104.mp4",
+        "cut_ANU-25-summer-19_20260105.mp4",
+        "cut_ANU-25-summer-19_20260106.mp4",
+        "cut_ANU-25-summer-19_20260108.mp4",
+        "cut_ANU-25-summer-20_20260106.mp4",
+        "cut_ANU-25-summer-2_20260106.mp4",
+        "cut_ANU-25-summer-3_20260106.mp4",
+        "cut_ANU-25-summer-4_20260106.mp4",
+    ]
+    raise SystemExit(main(video_dir, video_list))
