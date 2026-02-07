@@ -115,7 +115,7 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
     video_name = os.path.splitext(os.path.basename(video_path))[0]
-    out_parquet = os.path.join(output_dir, f"{video_name}.parquet")
+    out_parquet = os.path.join(output_dir, f"{video_name}_new_dark.parquet")
 
     print("모델 경로:", model_path)
     print("영상 경로:", video_path)
